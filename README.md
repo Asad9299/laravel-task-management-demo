@@ -71,3 +71,8 @@ cd laravel-task-management
     ```bash 
         With MAIL_MAILER=log, emails are logged to storage/logs/laravel.log.
     ```
+10. For the APIs, postman collection URL:
+      ```bash
+          https://asadmansuri6797-4418108.postman.co/workspace/Asad-Mansuri's-Workspace~fb9c98e4-8504-49ee-837b-45e79797deb7/collection/50277539-e70a68da-dd2d-45e6-a529-aba1c4b44135?action=share&creator=50277539&active-environment=50277539-445b718c-48bf-42d1-abd2-9d05e00f5f2c
+      ```
+      
