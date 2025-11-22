@@ -1,87 +1,177 @@
 <?php
 
-namespace App\Http\Requests\User;
+namespace App\Http\Controllers\Api;
 
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Carbon;
+use App\Http\Controllers\Controller;
+use App\Models\Task;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use App\Http\Requests\User\TaskRequest;
 
-class TaskRequest extends FormRequest
+class TaskApiController extends Controller
 {
-    public function authorize(): bool
+    /**
+     * List tasks with pagination
+     */
+    public function index(Request $request)
     {
-        return true;
+        try {
+            $perPage = $request->query('per_page', 10); // default 10
+            $tasks = Task::where('user_id', $request->user()->id)
+                         ->orderBy('id', 'desc')
+                         ->paginate($perPage);
+
+            return response()->json([
+                'success' => true,
+                'tasks'   => $tasks
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Task Index Error: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch tasks.'
+            ], 400);
+        }
     }
 
-    public function rules(): array
+    /**
+     * Create new task
+     */
+    public function store(TaskRequest $request)
     {
-        $rules = [
-            'title' => 'required|string|min:3|max:255',
-            'description' => 'required|string|min:5',
-            'status' => 'required|in:pending,in-progress,completed',
-            'due_date' => ['required', 'date'],
-        ];
+        try {
+            $task = Task::create([
+                'user_id'     => $request->user()->id,
+                'title'       => $request->title,
+                'description' => $request->description,
+                'status'      => $request->status,
+                'due_date'    => $request->due_date,
+            ]);
 
-        // Create: must be today or future
-        if ($this->isMethod('post')) {
-            $rules['due_date'][] = 'after_or_equal:today';
-            return $rules;
+            return response()->json([
+                'success' => true,
+                'task'    => $task
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Task Store Error: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create task.'
+            ], 400);
         }
-
-        // Update: allow existing past date only if user keeps the same date;
-        // otherwise require date >= today.
-        if ($this->isMethod('put') || $this->isMethod('patch')) {
-
-            // closure rule to enforce: value must be >= today OR equal to existing stored date
-            $rules['due_date'][] = function ($attribute, $value, $fail) {
-                $today = Carbon::today();
-
-                // parse submitted and existing (route model binding 'task')
-                try {
-                    $submitted = Carbon::parse($value)->startOfDay();
-                } catch (\Exception $e) {
-                    return $fail('The '.$attribute.' is not a valid date.');
-                }
-
-                $task = $this->route('task');
-                $existing = null;
-                if ($task && $task->due_date) {
-                    try {
-                        $existing = Carbon::parse($task->due_date)->startOfDay();
-                    } catch (\Exception $e) {
-                        $existing = null;
-                    }
-                }
-
-                // valid if submitted >= today
-                if ($submitted->greaterThanOrEqualTo($today)) {
-                    return;
-                }
-
-                // OR valid if submitted equals existing stored date
-                if ($existing && $submitted->equalTo($existing)) {
-                    return;
-                }
-
-                // otherwise fail
-                return $fail('The due date must be today or a future date, or unchanged if it was already in the past.');
-            };
-        }
-
-        return $rules;
     }
 
-    public function messages(): array
+    /**
+     * Show single task
+     */
+    public function show(Request $request, $id)
     {
-        return [
-            'title.required' => 'Title is required.',
-            'title.min' => 'Title must be at least :min characters.',
-            'description.required' => 'Description is required.',
-            'description.min' => 'Description must be at least :min characters.',
-            'status.required' => 'Please select a status.',
-            'status.in' => 'Invalid status selected.',
-            'due_date.required' => 'Please select a due date.',
-            'due_date.date' => 'Please enter a valid date.',
-            'due_date.after_or_equal' => 'Due date cannot be in the past.',
-        ];
+        try {
+            $task = Task::find($id);
+
+            if (!$task) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Task not found'
+                ], 404);
+            }
+
+            if ($task->user_id !== $request->user()->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            return response()->json([
+                'success' => true,
+                'task'    => $task
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Task Show Error: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch task.'
+            ], 400);
+        }
+    }
+
+    /**
+     * Update task
+     */
+    public function update(TaskRequest $request, $id)
+    {
+        try {
+            $task = Task::find($id);
+
+            if (!$task) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Task not found'
+                ], 404);
+            }
+
+            if ($task->user_id !== $request->user()->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            $task->update($request->validated());
+
+            return response()->json([
+                'success' => true,
+                'task'    => $task
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Task Update Error: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update task.'
+            ], 400);
+        }
+    }
+
+    /**
+     * Delete task
+     */
+    public function destroy(Request $request, $id)
+    {
+        try {
+            $task = Task::find($id);
+
+            if (!$task) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Task not found'
+                ], 404);
+            }
+
+            if ($task->user_id !== $request->user()->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            $task->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Task deleted'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Task Delete Error: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete task.'
+            ], 400);
+        }
     }
 }
