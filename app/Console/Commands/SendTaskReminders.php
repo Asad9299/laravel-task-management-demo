@@ -23,7 +23,6 @@ class SendTaskReminders extends Command
         }])->chunk(100, function ($users) {
 
             foreach ($users as $user) {
-                Log::info(['asad21' => $user->tasks]);
                 foreach ($user->tasks as $task) {
                     // Dispatch each task as a queued job
                     dispatch(new SendTaskReminder($task));
