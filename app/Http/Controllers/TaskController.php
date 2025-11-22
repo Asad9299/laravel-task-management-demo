@@ -7,12 +7,6 @@ use App\Http\Requests\User\TaskRequest;
 
 class TaskController extends Controller
 {
-
-/**
- * Display a listing of the user's tasks.
- *
- * @return \Illuminate\Http\Response
- */
     public function index()
     {
         $tasks = Task::where('user_id', auth()->id())
